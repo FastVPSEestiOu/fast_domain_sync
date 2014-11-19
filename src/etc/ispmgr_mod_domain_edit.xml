@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mgrdata>
+  <handler name="domainssync_domain_edit" type="cgi">
+    <event after="yes">domain.edit</event>
+  </handler>
+</mgrdata>

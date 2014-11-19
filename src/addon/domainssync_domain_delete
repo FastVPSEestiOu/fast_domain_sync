@@ -1,0 +1,89 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+'''
+Domain's Sync - plugin for sync domains between 2 instance of ISP Manager
+
+Copyright (C) 2011  Michael Neradkov <neradkov@fastvps.ru;dev@fastvps.ru> 
+FastVPS LLC
+ 194044 Saint-Petersburg, B. Sampsonievsky, 60, lit.A
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+'''
+
+__author__="Michael Neradkov <neradkov@fastvps.ru;dev@fastvps.ru>"
+__date__ ="$Dec, 2010 2:22:53 AM$"
+__version__="0.5"
+ISP_DIR = '/usr/local/ispmgr'
+
+#from sys import argv
+from sys import exit,path,stderr
+from cgi import FieldStorage
+
+path.append(ISP_DIR + '/lib/python')
+from domainssync import DomainsSyncManager, args_to_params
+
+
+
+#==============================================================================
+if __name__ == "__main__":
+    ds = DomainsSyncManager()
+    try:
+        try:
+            args = FieldStorage(keep_blank_values=True)
+            
+            params = args_to_params(args)
+            if params.has_key('out'):
+                if params['out'] == 'text':
+                    print 'Text'
+                    exit(0)
+                    
+        except Exception, ex:
+            raise Exception('Unable to parse args=[%s] with error [%s]' 
+                            % (args, ex))
+        
+        func = params['func']
+        ds.log.Info('Calling [%s]' % (func, ))
+        
+        if params.has_key('elid'):
+            ds.log.Debug('Elid found [%s] length[%s]' % 
+                         (params['elid'], len(params['elid'])))
+            
+            if (len(params['elid']) > 0):
+                deleting = (func=='domain.delete' or 
+                            func=='domain.sublist.delete')
+                
+                if params.has_key('sok') or deleting:
+                    text = ds.send_domain_edit_request(params)
+                else:
+                    text = ds.get_empty_result()
+            else:
+                if params.has_key('sok'):
+                    text = ds.send_domain_create_request(params)
+                else:
+                    text = ds.get_empty_result()
+        else: 
+            ds.log.Debug('Elid not found')
+            text = ds.get_empty_result()
+                
+        ds.log.Debug('Result [%s]' % (text, ))
+        print (text)
+    except Exception, ex:
+        import traceback
+        ds.get_error_exit('Unable to sync [%s] [%s]' % 
+                          (ex, traceback.format_exc()))
+
+    exit(0)
+
+
+

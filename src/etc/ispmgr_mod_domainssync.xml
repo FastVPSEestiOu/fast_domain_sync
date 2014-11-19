@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mgrdata>
+	<plugin>
+		<name lang="en">DomainsSync</name>
+		<description lang="ru">Синхронизация DNS для ISP Manager (Требуется Python >= 2.5 (не Python3))</description>
+		<description lang="en">(Required installed Python >= 2.5 (not Python3))</description>
+		<url>http://plugin.fastvps.ru/ispmgr/domainssync.tar.gz</url>
+		<require>python</require>
+		<langver>2.5</langver>
+		<manager>ispmgr</manager>
+		<mgrver>ISPmanager-Lite</mgrver>
+		<author>Michael Neradkov</author>
+		<contact>michael.neradkov@gmail.com</contact>
+		<version>0.6</version>
+	</plugin>
+
+	<handler name="domainssync_plugin.py" type="cgi" minlevel="7">
+		<func>domainssync</func>
+		<func>domainssync.edit</func>
+	</handler>
+
+	<metadata name="domainssync" type="form">
+		<form>
+	        <field name="host">
+	            <input type="text" name="host" empty="no" default="http://ns3.fastvps.ru"/>
+            </field>
+	        <field name="username">
+	            <input type="text" maxlength="12" name="username" empty="no"/>
+	        </field>
+	        <field name="password">
+	            <input type="password" maxlength="12" name="password" empty="no"/>
+	        </field>
+		</form>
+	</metadata>
+
+		
+	<mainmenu level="7">
+	  <node name="tool">
+	    <node isform="yes" name="domainssync"/>
+	  </node>
+	</mainmenu>
+	
+	
+	<lang name="en">
+		<messages name="desktop">
+			<msg name="menu_domainssync">DomainsSync</msg>
+		</messages>	
+		<messages name="domainssync">
+			<msg name="title">DomainSync Config</msg>
+			<msg name="title_new">DomainSync Config</msg>
+			<msg name="item">Item Value</msg>
+			<msg name="hint_item">Item value from myconf</msg>
+			
+			<msg name="host">Host</msg>
+			<msg name="username">Username</msg>
+			<msg name="password">Password</msg>
+		</messages>
+	</lang>
+
+	<lang name="ru">
+		<messages name="desktop">
+			<msg name="menu_domainssync">Синхронизация DNS</msg>
+		</messages>	
+		<messages name="domainssync">
+			<msg name="title">Синхронизация DNS - Настройки</msg>
+			<msg name="host">DNS сервер для синхронизации</msg>
+			<msg name="username">Имя пользователя</msg>
+			<msg name="password">Пароль</msg>
+		</messages>
+	</lang>
+
+</mgrdata>

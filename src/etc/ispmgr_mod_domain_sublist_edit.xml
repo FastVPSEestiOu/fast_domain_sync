@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mgrdata>
+  <handler name="domainssync_domain_sublist_edit" type="cgi">
+    <event after="yes">domain.sublist.edit</event>
+  </handler>
+</mgrdata>

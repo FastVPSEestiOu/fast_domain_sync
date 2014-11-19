@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mgrdata>
+  <handler name="domainssync_domain_delete" type="cgi">
+    <event after="yes">domain.delete</event>
+  </handler>
+</mgrdata>
