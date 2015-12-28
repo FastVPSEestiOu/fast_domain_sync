@@ -22,7 +22,7 @@
 	<metadata name="domainssync" type="form">
 		<form>
 	        <field name="host">
-	            <input type="text" name="host" empty="no" default="http://ns3.fastvps.ru"/>
+	            <input type="text" name="host" empty="no" default="http://dns.fastvps.ru"/>
             </field>
 	        <field name="username">
 	            <input type="text" maxlength="12" name="username" empty="no"/>

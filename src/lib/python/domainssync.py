@@ -36,7 +36,7 @@ import mgr
 
 ISP_LOG = ISP_DIR + '/var/ispmgr.log'
 #ISPMGR_CONFIG_PATH = ISP_DIR + '/etc/ispmgr.conf'
-REMOTE_ISP_URL = 'https://ns3.fastvps.ru'
+REMOTE_ISP_URL = 'https://dns.fastvps.ru'
 # Таймаут для запроса к NS3
 ISP_REQUEST_TIMEOUT = 90
 
