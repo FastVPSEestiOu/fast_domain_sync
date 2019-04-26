@@ -32,7 +32,7 @@ Domain Sync plugin provides ability to use FASTDNS from ISPManager 4 Lite
 * Идем в меню "Настройки сервера - Синхронизация DNS" и указываем токен для FASTDNS.
 * Наслаждаемся новой версией! (smile)
 
-Описание конфига /usr/local/ispmgr/etc/domainsync.ini
+Описание конфига /usr/local/ispmgr/etc/domainssync.ini
 ```bash
 [fastdns]
 token = xxx

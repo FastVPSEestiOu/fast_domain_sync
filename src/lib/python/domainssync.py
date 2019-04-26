@@ -464,7 +464,9 @@ class DomainsSyncManager:
         tpl = """<?xml version="1.0" encoding="UTF-8"?><doc><elid/>
         <token>%s</token>
         </doc>"""
-        return tpl % self.fastdns['token']
+        if 'token' in self.fastdns:
+            return tpl % self.fastdns['token']
+        return tpl
 
     def get_config_error(self):
         params = {'func' : 'domain'}
