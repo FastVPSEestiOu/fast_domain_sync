@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <plugins>
-	<plugin name="domainssync" version="0.6">
+	<plugin name="domainssync" version="0.7">
 		<descr lang="en">(Требуется Python >= 2.5 (не Python3))</descr>
-		<author name="Michael Neradkov / FastVPS" contacts="michael.neradkov@gmail.com"/>
+		<author name="FASTVPS" contacts="support@fastvps.ru"/>
 		<url>https://raw.githubusercontent.com/FastVPSEestiOu/fast_domain_sync/master/domainssync.tar.gz</url>
 		<manager>ispmgr</manager>
 		<name lang="en">DomainsSync for ISP Manager</name>
