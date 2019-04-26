@@ -1,86 +1,37 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-'''
-Domain's Sync - plugin for sync domains between 2 instance of ISP Manager
-
-Copyright (C) 2011  Michael Neradkov <neradkov@fastvps.ru;dev@fastvps.ru> 
-FastVPS LLC
- 194044 Saint-Petersburg, B. Sampsonievsky, 60, lit.A
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
-'''
-
-
 ISP_DIR = '/usr/local/ispmgr'
 
+import requests
+import json
+import time
 from sys import exit,path,stderr
 from xml.dom import minidom
 import os
 import time
-import urllib
 import ConfigParser
+from xml.dom import minidom
 
-path.append(ISP_DIR + '/lib/python')
-import mgr
 
+BASEURL = "https://fastdns.fv.ee"
 ISP_LOG = ISP_DIR + '/var/ispmgr.log'
-#ISPMGR_CONFIG_PATH = ISP_DIR + '/etc/ispmgr.conf'
-REMOTE_ISP_URL = 'https://dns.fastvps.ru'
-# Таймаут для запроса к NS3
-ISP_REQUEST_TIMEOUT = 90
-
-os.chdir(ISP_DIR)
+path.append(ISP_DIR + '/lib/python')
 
 
-#==============================================================================
-def isp_local_request(func, params, out=None):
-    from subprocess import Popen, PIPE
-    #keys_str = ' '.join(["=".join(map(str,k)) for k in keys])
-    
-    str = ''
-    for key, value in params.iteritems():
-        str = str + key + '=\'' + value + '\' '
-        
-    q = """%s %s""" % (func, str[:-1])
-    print q
-    if out is not None:
-        type = 'xml'
-    else:
-        type = 'text'
-    cmd = '/usr/local/ispmgr/sbin/mgrctl -m ispmgr -o %s %s' % (type, q)
-    
-    print "\n\033[0m"+cmd
-    res = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE).communicate()[0]
-    
-    return res
-
-#==============================================================================
 def args_to_params(args):
     keys = args.keys()
     params = {}
-    
+
     for key in keys:
         try:
             value = args[key].value
             params[key] = value
-            
+
         except:
             pass
-    
+
     return params
 
-#==============================================================================
 def get_elid(name):
     if name[-1] == '.':
         elid = name[:-1]
@@ -88,15 +39,12 @@ def get_elid(name):
         elid = name
     return elid
 
-#==============================================================================
 def get_name(name):
     if name[-1] != '.':
         name = name + '.'
 
     return name
 
-
-#==============================================================================
 class Log:
     """Logging class"""
     __fname = 0
@@ -124,6 +72,7 @@ class Log:
         else:
             value = string
         return value
+
 
     #--------------------------------------------------------------------------
     def __write(self, msg='', colortype=0):
@@ -169,43 +118,39 @@ class Log:
         """ExtInfo log level"""
         if self.__llevel >= 6:
             self.__write(msg, 6)
-        
-        
-        
-#==============================================================================
+
 class DomainsSyncManager:
+    token = ""
+    log = None
     name = 'domainssync'
+    fastdns = {}
+    authToken = ""
     config      = None
     config_file = None
-    log = None
-    isp = {}
-    
-    #--------------------------------------------------------------------------
+
     def __init__(self):
         '''
         Read and parse config files
         '''
         self.log = Log(self.__class__.__name__)
         self.log.__llevel = 9
-        
+
         # @todo tolower
         self.config_file = ISP_DIR+'/etc/'+self.name+'.ini'
-        
+
         if not os.path.exists(self.config_file):
-            try: 
-                default_params = {'host': REMOTE_ISP_URL, 
-                           'username' : 'xxx',
-                           'password' : 'xxx' }
+            try:
+                default_params = {'host': BASEURL,
+                           'token' : 'xxx'}
                 self.config_save(default_params)
             except Exception, ex:
                 msg = 'Unable to save config file [%s] - Error: [%s]' % (self.config_file, ex)
                 self.log.Error(msg)
                 raise Exception(msg)
-        
-        
+
         stderr = self.log
         self.config_load()
-        
+
     #--------------------------------------------------------------------------
     def config_load(self):
         ''' Load config files '''
@@ -213,291 +158,325 @@ class DomainsSyncManager:
         try:
             self.config = ConfigParser.ConfigParser()
             self.log.Debug('Try to read config [%s]' % (self.config_file, ))
-            self.config.readfp(open(self.config_file))
+           # self.config.readfp(open(self.config_file))
+            self.config.read(self.config_file)
         except Exception, ex:
             msg = 'Unable to read config file [%s]' % self.config_file
             self.log.Error(msg)
             #raise Exception(msg)
-
         try:
             self.log.Debug('Try to parse config')
-            #self.log.__llevel = int(self.config.get('log', 'level'))
-            self.isp['host'] = self.config.get('isp_master', 'host') 
-            self.isp['username'] = self.config.get('isp_master', 'username')
-            self.isp['password'] = self.config.get('isp_master', 'password')
-            #self.config.read([file1, file2])
+            self.log.Debug("%s" % self.config)
+            self.fastdns['token'] = self.config.get('fastdns', 'token')
+            self.authToken = self.fastdns['token']
         except Exception, ex:
+            self.log.Error(ex)
             msg = 'Unable to parse config file [%s]' % self.config_file
             self.log.Error(msg)
             #raise Exception(msg)
-        
-        
+
         try:
-            #ret = isp_local_request('paramlist', {'elid' : 'LogLevel'})
-            #data = ret.split('=')
-            #self.log.__llevel = int(data[1])
             self.log.__llevel = self.config.getint('log', 'level')
             msg = 'Get LogLevel from ISPManager [%s]' % (self.log.__llevel, )
         except Exception, ex:
             self.log.__llevel = 1
             msg = 'Unable to get LogLevel from ISPManager [%s] - using default [1]'
-        
-        self.log.Debug(msg)
-        
 
-    #--------------------------------------------------------------------------
-    def send_isp_request(self, params, type='xml', out='doc'):
-        '''Get XML result of isp request'''
-        print "Content-type: text/html\n\n"
-        
-        default_params = {
-            'authinfo' : self.isp['username']+':'+self.isp['password'],
-            # @todo type
-            'out' : 'xml'
-        }
-    
-        url_params = default_params
-        keys = params.keys()
-        
-        for key, value in params.iteritems():
-            url_params[key] = value
-        
-       
-        url = self.isp['host']+'/manager/ispmgr?'+urllib.urlencode( url_params )
-        self.log.ExtInfo('Send ISP request [%s]' % (url, ))
-        # res =    urllib.urlopen(url, {}, ISP_REQUEST_TIMEOUT)
-        import urllib2
-        import socket
-        socket.setdefaulttimeout(ISP_REQUEST_TIMEOUT)
-        
+        self.log.Debug(msg)
+
+    def get_domain_id(self, name):
+        name = unicode(name, "utf-8")
+        name = name.encode('idna')
+        self.log.Info("Try to find '%s domain" % name)
         try:
-            res = urllib2.urlopen(url)
-            if type == 'xml':
-                xmldoc = minidom.parse(res)
-                text = xmldoc.toxml("UTF-8")
-                if out == 'doc': 
-                    result = xmldoc
-                else:
-                    result = text
-            else:
-                text  = res
-                result = res
-        except:
-            msg = u'ISP Manager not found at [%s]' % (self.isp['host'], )
-            if type == 'xml':
-                text = u'<?xml version="1.0" encoding="UTF-8"?><doc><error code="8">%s</error></doc>' % (msg, )
-                result = minidom.parseString(text)
-            else:
-                text = msg 
-                result = text
-         
-            
-        self.log.Debug('Get ISP response in [%s] - [%s] as [%s]' % 
-                       (type, text, out))
-    
-        return result
-    
-    #--------------------------------------------------------------------------
-    def create_predefined_subdomains(self, parent_domain, ip):
-        ''' Create a set of predefined subdomains for parent domain'''
-        subdomains_set = ('ftp', 'pop', 'smtp') #'mail',
-        for name in subdomains_set:
-            params = {
-                'name'   : name,
-                'func'   : 'domain.sublist.edit',
-                'plid'   : get_elid(parent_domain),
-                'addr'   : ip,
-                'sok'    : 'yes',
-                'sdtype' : 'A'
-            }
-            xmldoc = self.send_isp_request(params)
-            
-            try: 
-                '''
-                er_elements = xmldoc.getElementsByTagName('error')
-                for er_el in er_elements:
-                    er_msg  = er_el.childNodes[0].data
-                    er_code = er_el.getAttribute('code')
-                '''
-                error = self._get_xml_response_error(xmldoc)
-                if error:
-                    raise Exception ('ISP error code [%s] with message [%s]' %
-                                    (error['code'], error['msg']))
-                self.log.Info('SubDomain [%s.%s] was created remotely' % 
-                         (name, parent_domain))
-            except Exception, ex:
-                self.log.Error('SubDomain [%s.%s] was NOT created - Error [%s]' %
-                          (name, parent_domain, ex))        
-        return self.get_empty_result()
-    
-    
-    #--------------------------------------------------------------------------
-    def _get_xml_response_error(self, xmldoc):
-        ''' Check and get error in XML document - ISP response '''
-        er_elements = xmldoc.getElementsByTagName('error')
-        for er_el in er_elements:
-            er_msg  = er_el.childNodes[0].data
-            er_code = er_el.getAttribute('code')
-            return {'code' : er_code, 'msg': er_msg}
-        return None
-    
-    #--------------------------------------------------------------------------
+            r = self.send_fastdns_request('GET', "/api/domains/%s/name" % name, {})
+            respData = json.loads(r.text)
+            return respData['id']
+        except Exception as e:
+            self.log.Error('Domain [%s] not found' % name)
+            raise e
+
     def send_domain_create_request(self, params):
-        
-        # do not create www and mail domains at parent DNS    
+        self.log.Debug("Given create domain params %s" % params)
+        self.log.Info("Try to create '%s domain" % params['name'])
+        # do not create www and mail domains at parent DNS
         if 'webdomain' in params:
             del params['webdomain']
         if 'maildomain' in params:
             del params['maildomain']
+        # create domain
+        requestData = {
+           'name': params['name'],
+           'ip': params['ip'],
+           'mail_service': 0
+        }
 
-        xmldoc = self.send_isp_request(params)
-        text = xmldoc.toxml("UTF-8")
-        
         try:
-            errors = xmldoc.getElementsByTagName('error')
-            if len(errors) == 0:
-                self.log.Info('Domain [%s] was created remotely' % 
-                     (params['name'],))
-            else:
-                raise
+            r = self.send_fastdns_request('POST', "/api/domains", requestData)
+            respData = json.loads(r.text)
+            self.log.Info('Domain [%s] was created remotely' %
+                 (params['name']))
+            self.log.Debug('Creating subdomains for [%s] at [%s]' % (params['name'], params['ip']))
+            self.create_predefined_subdomains(respData['id'], params['name'], params['ip'])
+        except Exception as e:
+            msg = 'Domain [%s] was NOT created - Error [%s]' % (params['name'], e)
+            self.log.Error(msg)
+            raise Exception(e)
+
+        return
+
+
+    def create_predefined_subdomains(self, domainId, parent_domain, ip):
+        ''' Create a set of predefined subdomains for parent domain'''
+        subdomains_set = ('ftp', 'pop', 'smtp') #'mail',
+        for name in subdomains_set:
+            # create domain
+            requestData = {
+               'name': name + "." + get_name(parent_domain),
+               'content': ip,
+               'type': 'A'
+            }
+            self.send_fastdns_request('POST', "/api/domains/%s/records" % domainId, requestData)
+
+    def delete_domain(self, params):
+        try:
+            dID = self.get_domain_id(params['elid'])
+            self.send_fastdns_request('DELETE', "/api/domains/%s" % dID, {})
+        except Exception as e:
+            msg = "Domain [%s] not found" % params['elid']
+            self.log.Error(msg)
+            raise Exception(msg)
+
+
+    def get_record_id(self, dID, domainName, elid, rType):
+        try:
+            nElid = self.add_origin_to_elid(elid, domainName, rType)
+            self.log.Info("try to find '%s' record" % nElid)
+            uri = str("/api/domains/%d/records/%s/elid" % (dID, nElid))
+            r = self.send_fastdns_request('GET', uri, {})
+            respData = json.loads(r.text)
+            return respData['id']
         except:
-            self.log.Error('Domain [%s] was NOT created - Error [%s]' % 
-                      (params['name'], text))
-            return text
-    
-        func = params['func']
-        elid = params['elid']
-        
-        # @todo New domain creating
-        if (func == 'domain.edit' and not len(elid)): 
-            elid     = get_name(params['name'])
-            ip       = params['ip']
-            isp_ip   = '78.47.76.4' # @todo
-            txt_elid = ('%s TXT  v=spf1 ip4:%s a mx ~all' % (params['name'], isp_ip));
-            
-            new_params = {
-                'elid' : params['name'],
-                'func' : 'domain.sublist'
-            }
-            xmldoc = self.send_isp_request(new_params)
-            
-            # get ELID from fresh TXT record
-            try:
-                elements = xmldoc.getElementsByTagName('elem')
-                self.log.Info('elements count [%s]' % len(elements))
-                
-                for elem in elements:
-                    types_elements = elem.getElementsByTagName('type')
-                    for type_el in types_elements:
-                        type = type_el.childNodes[0].data
-                        self.log.Debug('element type=[%s]' % type)
-                        
-                        if type == 'TXT':
-                            self.log.Debug('first child type=[%s]' % '5')
-                            key_elements = elem.getElementsByTagName('key')
-                            for key_el in key_elements:
-                                self.log.Debug('first child key=[%s]' % '6')
-                                txt_elid  = key_el.childNodes[0].data
-                                self.log.Info('TXT elid for fixing is [%s]' % txt_elid)
-            except Exception, ex:
-                self.log.Error('Unable to process XML - [%]' % ex)
-                
-    
-            import socket
-            client_ip = socket.gethostbyname(socket.gethostname())
-            self.log.Debug('Fixing SPF record')
-            
-                
-            new_params = {
-                'elid'   : '', #txt_elid,
-                'addr'   : ('v=spf1 ip4:%s a mx ~all' % client_ip),
-                'sdtype' : 'TXT',
-                'name'   : elid,
-                'prio'   : '',
-                'sok'    : 'yes',
-                'func'   : 'domain.sublist.edit',
-                'plid'   : params['name'],
-                'wght'   : '',
-                'port'   : ''
-            }
-            xmldoc = self.send_isp_request(new_params)
-            
-            self.log.Debug('Creating subdomains for [%s] at [%s]' % (params['name'], ip))
-            reply = self.create_predefined_subdomains(params['name'], ip)
-        
-        return text
-    
-    #--------------------------------------------------------------------------
-    def send_domain_edit_request(self, params):
+            self.log.Error("record '%s' not found in '%s' zone" % (nElid, domainName))
+            raise Exception("Record '%s' not found remotely" % elid)
 
-        xmldoc = self.send_isp_request(params)
-        text = xmldoc.toxml("UTF-8")
-        
-        try:
-            errors = xmldoc.getElementsByTagName('error')
-            if len(errors) == 0:
-                self.log.Info('Domain [%s] was updated remotely' % 
-                     (params['elid'],))
-                return self.get_empty_result()
-                #return text
-            else:
-                raise
-        except Exception, ex:
-            self.log.Error('Domain [%s] was NOT updated - Error [%s] [%s]' % 
-                      (params['elid'], text, ex))
+    def add_origin_to_elid(self, elid, origin, sdtype):
+        origin = unicode(origin, "utf-8")
+        origin = origin.encode('idna')
+        fields = elid.split()
+        fields[0] = self.add_origin(fields[0], origin)
+        if sdtype == 'CNAME':
+            if not self.isFqdn(fields[2]):
+                fields[2] = self.add_origin(fields[2], origin)
+        if sdtype == 'SRV':
+            if not self.isFqdn(fields[len(fields)-1]):
+                fields[len(fields)-1] = self.add_origin(fields[len(fields)-1], origin)
+        if sdtype == 'MX':
+            if not self.isFqdn(fields[3]):
+                fields[3] = self.add_origin(fields[3], origin)
 
-        return text        
-            
-    
-    #--------------------------------------------------------------------------
+        self.log.Info("field %s" % fields)
+        return " ".join(fields)
+
+    def add_origin(self, name, origin):
+        self.log.Info("origin %s" % origin)
+        if self.isFqdn(name):
+            return name
+
+        if len(origin) == 0:
+            return name
+
+        if name == '@' or len(name) == 0:
+            return self.fqdn(origin)
+
+        if origin == '.':
+            return self.fqdn(name)
+
+        return name + "." + self.fqdn(origin)
+
+    def isFqdn(self, name):
+        return (name[-1] == '.')
+
+    def fqdn(self, name):
+        if name[-1] != '.':
+            name = name + '.'
+
+        return name
+
+    def add_record(self, params):
+        self.log.Debug("Given add record params %s" % params)
+        dID = self.get_domain_id(params['plid'])
+        requestData = {
+           'name': self.add_origin(params['name'], params['plid']),
+           'content': params['addr'],
+           'type': params['sdtype'],
+        }
+        if params.has_key('prio') and params['prio'] != "":
+            requestData['priority'] = int(params['prio'])
+        if params.has_key('wght') and params['wght'] != "":
+            requestData['weight'] =  int(params['wght'])
+        if params.has_key('port') and params['port'] != "":
+            requestData['port'] = int(params['port'])
+
+        self.send_fastdns_request('POST', "/api/domains/%s/records" % dID, requestData)
+
+    def elid_to_params(self, elid):
+        fields = elid.split()
+        params = {
+            'name': fields[0],
+            'sdtype': fields[1],
+            'addr': fields[2],
+        }
+
+        return params
+
+    def update_record(self, params):
+        self.log.Debug("Given updates params %s" % params)
+        rParams = self.elid_to_params(params['elid'])
+        if rParams['sdtype'] != params['sdtype']:
+            raise Exception("Record type can not be changed")
+
+        dID = self.get_domain_id(params['plid'])
+        rId = self.get_record_id(dID, params['plid'], params['elid'], rParams['sdtype'])
+        requestData = {
+           'name': self.add_origin(params['name'], params['plid']),
+           'content': params['addr'],
+           'type': params['sdtype'],
+        }
+        if params.has_key('prio') and params['prio'] != "":
+            requestData['priority'] = int(params['prio'])
+        if params.has_key('wght') and params['wght'] != "":
+            requestData['weight'] =  int(params['wght'])
+        if params.has_key('port') and params['port'] != "":
+            requestData['port'] = int(params['port'])
+
+        uri =  "/api/domains/%s/records/%s" % (dID, rId)
+        self.send_fastdns_request('PUT', uri, requestData)
+        self.log.Info("Record '%s' successfully updated" % params['elid'])
+
+    def delete_record(self, params):
+        self.log.Debug("Given delete params %s" % params)
+        self.log.Info("try to delete '%s' record from '%s' zone" % (params['elid'], params['plid']))
+        dID = self.get_domain_id(params['plid'])
+
+        rParams = self.elid_to_params(params['elid'])
+        rId = self.get_record_id(dID, params['plid'], params['elid'], rParams['sdtype'])
+        uri =  "/api/domains/%s/records/%s" % (dID, rId)
+        self.send_fastdns_request('DELETE', uri, {})
+        self.log.Info("Record '%s' deleted successfully" % params['elid'])
+
+    def send_fastdns_request(self, method, uri, params):
+        url = BASEURL + uri
+        headers = {
+            'Authorization': 'Bearer ' + self.token,
+            "Content-Type": "application/json",
+            "language": "en"
+        }
+        data = json.dumps(params)
+        self.log.Info("send %s" % data)
+        self.log.Info("uri %s" % uri)
+        r = {}
+        if method == 'GET':
+            r = requests.get(url, headers=headers, verify=False)
+        if method == 'POST':
+            self.log.Info(method)
+            r = requests.post(url, data=data, headers=headers, verify=False)
+        if method == 'PUT':
+            r = requests.put(url, data=data, headers=headers, verify=False)
+        if method == 'DELETE':
+            r = requests.delete(url, headers=headers, verify=False)
+        if r.status_code == 404:
+            raise Exception("Resource not found")
+        if r.status_code >= 400 and r.status_code <= 511:
+            rData = json.loads(r.text)
+            self.log.Info("%s" % rData)
+            raise Exception(self.get_error(rData))
+        return r
+
+    def get_error(self, jsonReponse):
+        msg = "something gone wrong"
+        if 'errors' in jsonReponse:
+            errors = jsonReponse['errors']
+            for key in errors:
+                msg = "{}".format(str(errors[key]))
+        return msg
+
+     #    return text
     def get_empty_result(self):
         xmldoc = minidom.Document()
         doc = xmldoc.createElement('doc')
         xmldoc.appendChild(doc)
         return xmldoc.toxml("UTF-8")
 
-        
     #--------------------------------------------------------------------------
     def get_error_exit(self, string, errcode=0):
         """Print xml with error and exit"""
         xmldoc = minidom.Document()
         doc = xmldoc.createElement('doc')
         xmldoc.appendChild(doc)
-        
+
     #    string = re.sub('\'', '"', string)
         if type(string).__name__ == 'str':
             errstring = string.decode('utf-8')
         else:
             errstring = string
-    
+
         erel = xmldoc.createElement('error')
         doc.appendChild(erel)
-    
+
         ertxt = xmldoc.createTextNode(errstring)
         erel.appendChild(ertxt)
-    
+
         if errcode > 0:
             erel.setAttribute('code', str(errcode))
-        
+
         #if errcode > 0:
         #    erel.setAttribute('obj', '')
-    
+
         txt = xmldoc.toxml("UTF-8")
-        
+
         self.log.Error(txt)
-    
+
         print txt
         exit(0)
-        
-    
-    #--------------------------------------------------------------------------
+
+    def auth(self):
+        headers = {'Authenticate': self.authToken}
+        url = BASEURL + '/login_token'
+        r = requests.post(url, headers=headers, verify=False)
+        if r.status_code == 200:
+            json_data = json.loads(r.text)
+            self.log.Info("%s" % json_data)
+            self.token = json_data['token']
+            return
+        raise Exception('Bad credentials')
+
+    def send_isp_request(self, params, type='xml', out='doc'):
+        '''Get XML result of isp request'''
+        try:
+            self.auth()
+        except Exception as e:
+            self.log.Debug('Get FASTDNS response in [%s]' % (e))
+            raise Exception(e)
+
+    def config_to_xml(self):
+        """Get config for interface edit"""
+        tpl = """<?xml version="1.0" encoding="UTF-8"?><doc><elid/>
+        <token>%s</token>
+        </doc>"""
+        return tpl % self.fastdns['token']
+
+    def get_config_error(self):
+        params = {'func' : 'domain'}
+        self.send_isp_request(params)
+        return
+
     def config_save(self, params):
         """Save config file"""
         cfg_tpl = """
-[isp_master]
-host = %s
-username = %s
-password = %s
+
+[fastdns]
+token = %s
 
 [log]
 ; 9 - Debug
@@ -506,36 +485,13 @@ password = %s
 ; 4 - Info
 ; 2 - Warning
 ; 1 - Error
-
 level = %s
 """
-        
-        args = (params['host'], params['username'], 
-                params['password'], self.log.__llevel)
+        self.log.Info("save %s" % self.config_file)
+        args = (params['token'], self.log.__llevel)
         cfg = cfg_tpl % args
-        
+
         fp = open(self.config_file, "w")
         fp.write(cfg)
         fp.close()
         os.chmod(self.config_file, int("0600", 16))
-    
-    #--------------------------------------------------------------------------
-    def get_config_error(self):
-        params = {'func' : 'domain'}
-        xmldoc = self.send_isp_request(params)
-        error = self._get_xml_response_error(xmldoc)
-        return error 
-        
-    #--------------------------------------------------------------------------
-    def config_to_xml(self):
-        """Get config for interface edit"""
-        tpl = """<?xml version="1.0" encoding="UTF-8"?><doc><elid/>
-        <host>%s</host>
-        <username>%s</username>
-        <password>%s</password>
-        </doc>"""
-        args = ( self.isp['host'], 
-                self.isp['username'], self.isp['password'])
-
-        return tpl % args
-        

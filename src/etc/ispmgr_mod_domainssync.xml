@@ -4,14 +4,14 @@
 		<name lang="en">DomainsSync</name>
 		<description lang="ru">Синхронизация DNS для ISP Manager (Требуется Python >= 2.5 (не Python3))</description>
 		<description lang="en">(Required installed Python >= 2.5 (not Python3))</description>
-		<url>http://plugin.fastvps.ru/ispmgr/domainssync.tar.gz</url>
+		<url>https://raw.githubusercontent.com/FastVPSEestiOu/fast_domain_sync/master/domainssync.tar.gz</url>
 		<require>python</require>
 		<langver>2.5</langver>
 		<manager>ispmgr</manager>
 		<mgrver>ISPmanager-Lite</mgrver>
-		<author>Michael Neradkov</author>
-		<contact>michael.neradkov@gmail.com</contact>
-		<version>0.6</version>
+		<author>FASTVPS</author>
+		<contact>support@fastvps.ru</contact>
+		<version>0.7</version>
 	</plugin>
 
 	<handler name="domainssync_plugin.py" type="cgi" minlevel="7">
@@ -21,15 +21,9 @@
 
 	<metadata name="domainssync" type="form">
 		<form>
-	        <field name="host">
-	            <input type="text" name="host" empty="no" default="http://dns.fastvps.ru"/>
+	        <field name="token">
+	            <input type="text" name="token" empty="no" default=""/>
             </field>
-	        <field name="username">
-	            <input type="text" maxlength="12" name="username" empty="no"/>
-	        </field>
-	        <field name="password">
-	            <input type="password" maxlength="12" name="password" empty="no"/>
-	        </field>
 		</form>
 	</metadata>
 
@@ -51,9 +45,7 @@
 			<msg name="item">Item Value</msg>
 			<msg name="hint_item">Item value from myconf</msg>
 			
-			<msg name="host">Host</msg>
-			<msg name="username">Username</msg>
-			<msg name="password">Password</msg>
+			<msg name="token">Token</msg>
 		</messages>
 	</lang>
 
@@ -63,9 +55,7 @@
 		</messages>	
 		<messages name="domainssync">
 			<msg name="title">Синхронизация DNS - Настройки</msg>
-			<msg name="host">DNS сервер для синхронизации</msg>
-			<msg name="username">Имя пользователя</msg>
-			<msg name="password">Пароль</msg>
+			<msg name="token">Token для авторизации</msg>
 		</messages>
 	</lang>
 
